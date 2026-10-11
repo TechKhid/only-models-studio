@@ -5,6 +5,8 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const icon = (id) => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
+  // track.js listens for these; nothing happens if it isn't loaded
+  const emit = (type, detail = {}) => document.dispatchEvent(new CustomEvent('oms', { detail: { type, ...detail } }));
 
   /* ── data: everything here comes from the collective's public pages ── */
   const ROSTER = [
@@ -316,6 +318,14 @@
     $('#sentText').textContent = who === 'brand'
       ? `Your brief${bits.length ? ' (' + bits.join(' · ') + ')' : ''} is with the team. We’ll reply to ${email.value.trim()} with creators, a format and a quote.`
       : `Your application is with the team. If your content fits the collective, we’ll reply to ${email.value.trim()}.`;
+    const val = (k) => form.elements[k].value.trim();
+    emit('enquiry', who === 'brand'
+      ? { who, name: val('name'), email: val('email'), company: val('company'), country: val('country'), campaign: picks('type'), creators: picks('creators'), budget: picks('budget')[0], timeline: picks('timeline')[0], message: val('message') }
+      : { who, name: val('name'), email: val('email'), handle: val('handle'), country: val('country'), message: val('message') });
+    // with tracking on, the enquiry reaches the site builder as a notification; say so
+    $('#sentDemo').textContent = window.omsTrack
+      ? 'Demo preview: this enquiry went to the site’s builder, not yet to the Only Models inbox.'
+      : 'Demo preview: the form isn’t connected yet, so nothing was sent.';
     form.hidden = true; sent.hidden = false;
     sent.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
   });
@@ -453,6 +463,8 @@
     const summary = async () => {
       const b = st.brief;
       st.flow = 'done';
+      // contact details stay in the chat; they are only sent if the visitor submits the form
+      emit('brief', { campaign: b.type, creators: b.creators, budget: b.budget, timeline: b.timeline });
       await bot('Here’s your brief:');
       add(`<h5>Brief for Only Models</h5><dl>
         <dt>Campaign</dt><dd>${esc(b.type)}</dd>
@@ -499,11 +511,13 @@
     }));
     const send = (text) => { me(text); return handle(text); };
 
-    quick.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) send(c.textContent); });
+    // only messages the visitor sends themselves are reported, never the autoplay demo
+    const say = (text) => { emit('chat', { text, where: closable ? 'floating' : 'inline' }); return send(text); };
+    quick.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) say(c.textContent); });
     $('form', root).addEventListener('submit', (e) => {
       e.preventDefault();
       const v = input.value.trim();
-      if (v) { input.value = ''; send(v); }
+      if (v) { input.value = ''; say(v); }
     });
     log.addEventListener('click', (e) => {
       if (e.target.closest('[data-handoff]')) { st.queue = st.queue.then(handoff); return; }

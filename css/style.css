@@ -369,6 +369,7 @@ body::after {
 .foot__cta { justify-self: end; display: grid; gap: 1.2rem; justify-items: start; align-content: start; }
 .foot__cta p { font-family: var(--serif); font-size: clamp(1.4rem, 2.2vw, 2rem); line-height: 1.1; letter-spacing: -.02em; max-width: 14em; }
 .foot__word { font-family: var(--serif); font-size: min(17.2vw, 17rem); line-height: .8; letter-spacing: -.055em; white-space: nowrap; margin: clamp(3rem, 7vw, 6rem) 0 0 -.04em; background: linear-gradient(180deg, var(--bone) 30%, rgba(243, 235, 223, .1)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .08em; }
+.foot__fine { flex-basis: 100%; text-transform: none; letter-spacing: .02em; font-size: .72rem; }
 .foot__base { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 1.2rem 9.5rem 1.6rem 0; border-top: 1px solid var(--line); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
 
 /* ───────────── drawer ───────────── */

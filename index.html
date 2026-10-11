@@ -376,7 +376,7 @@
       <h3 class="display">Got it, <em id="sentName">thank you.</em></h3>
       <p id="sentText"></p>
       <button class="btn btn--line" id="sentReset" type="button">Send another</button>
-      <p class="sent__demo">Demo preview: the form isn&rsquo;t connected yet, so nothing was sent.</p>
+      <p class="sent__demo" id="sentDemo">Demo preview: the form isn&rsquo;t connected yet, so nothing was sent.</p>
     </div>
   </div>
 </section>
@@ -415,6 +415,7 @@
     <div class="foot__base">
       <span>© <span id="year">2026</span> Only Models Studio. Ghana × South Africa.</span>
       <span>Concept site by Techkhid</span>
+      <span class="foot__fine">Visits are measured: device, approximate location and what gets viewed.</span>
     </div>
   </div>
 </footer>
@@ -446,6 +447,7 @@
 <button class="ask" id="askBtn" aria-expanded="false" aria-controls="askPanel"><svg><use href="#i-chat"/></svg><span>Ask us</span></button>
 <section class="chat chat--float" id="askPanel" hidden aria-label="Only Models assistant" data-chat data-closable></section>
 
+<script src="js/track.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
