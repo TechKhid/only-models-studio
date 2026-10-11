@@ -611,6 +611,16 @@
     }, { passive: true });
     document.addEventListener('pointerleave', () => cursor.classList.remove('is-on'));
 
+    // grid lines brighten under the pointer
+    $$('.gridded:not(.gridded--cols)').forEach((sec) => {
+      sec.addEventListener('pointermove', (e) => {
+        const r = sec.getBoundingClientRect();
+        sec.style.setProperty('--mx', `${Math.round(e.clientX - r.left)}px`);
+        sec.style.setProperty('--my', `${Math.round(e.clientY - r.top)}px`);
+      }, { passive: true });
+      sec.addEventListener('pointerleave', () => sec.style.setProperty('--mx', '-99rem'));
+    });
+
     $$('.btn--solid, .nav__cta').forEach((b) => {
       b.addEventListener('pointermove', (e) => {
         const r = b.getBoundingClientRect();
@@ -619,6 +629,10 @@
       b.addEventListener('pointerleave', () => { b.style.transform = ''; });
     });
   }
+
+  // drifting grids only animate while their section is on screen
+  const liveGrids = new IntersectionObserver((entries) => entries.forEach((e) => e.target.classList.toggle('is-live', e.isIntersecting)));
+  $$('.gridded--live').forEach((el) => liveGrids.observe(el));
 
   observeReveals();
   $('#year').textContent = new Date().getFullYear();
