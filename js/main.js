@@ -38,6 +38,15 @@
   const pad = (n) => String(n).padStart(2, '0');
   const src = (f) => `assets/img/roster/${f}.jpg`;
 
+  // A refresh replays the intro, so it starts from the top instead of where the browser
+  // would restore the scroll. Fresh links to a section (#enquire) and back/forward keep their place.
+  const navEntry = performance.getEntriesByType('navigation')[0];
+  if (navEntry && navEntry.type === 'reload') {
+    history.scrollRestoration = 'manual';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    scrollTo({ top: 0, behavior: 'instant' });
+  }
+
   /* ── loader ── */
   const loader = $('#loader');
   const loaderCount = $('#loaderCount');
