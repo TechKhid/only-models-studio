@@ -25,15 +25,59 @@ function place(headers) {
   return { text, flag };
 }
 
-function device(ua, touch) {
-  const os = /android/i.test(ua) ? 'Android' : /iphone|ipad|ipod/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows'
-    : /mac os x/i.test(ua) ? (touch ? 'iPadOS' : 'macOS') : /linux/i.test(ua) ? 'Linux' : 'Unknown OS';
-  const kind = /ipad|tablet/i.test(ua) || os === 'iPadOS' ? 'tablet' : /mobi|iphone|android/i.test(ua) ? 'phone' : 'computer';
+// Apple never reports the iPhone model, so the closest honest answer is the set of
+// models that share the reported screen size (CSS points, portrait).
+const IPHONE_SCREENS = {
+  '320×568': 'SE 1st gen', '375×667': 'SE / 8 / 7 / 6s', '414×736': '8 Plus / 7 Plus',
+  '375×812': 'X / XS / 11 Pro / 12 mini / 13 mini', '414×896': 'XR / 11 / XS Max / 11 Pro Max',
+  '390×844': '12 / 13 / 14', '428×926': '12 Pro Max / 13 Pro Max / 14 Plus',
+  '393×852': '14 Pro / 15 / 15 Pro / 16', '430×932': '14 Pro Max / 15 Plus / 15 Pro Max / 16 Plus',
+  '402×874': '16 Pro', '440×956': '16 Pro Max',
+};
+// Android model codes that don't name their maker
+const MAKERS = [[/^(SM-|GT-)/i, 'Samsung'], [/^CPH\d/i, 'OPPO'], [/^RMX\d/i, 'realme'], [/^(moto|XT\d)/i, 'Motorola'], [/^(M\d{4}|2\d{3}[0-9A-Z]{4,})/, 'Xiaomi'], [/^V\d{4}/, 'vivo'], [/^TA-\d/i, 'Nokia']];
+
+// b.model / b.os / b.osv come from the browser's client hints when it offers them
+// (Chromium only); everything else is read from the user-agent string.
+function device(ua, b) {
+  const hintVer = typeof b.osv === 'string' && /^\d+(\.\d+)*$/.test(b.osv) ? b.osv.split('.')[0] : '';
+  const hintModel = typeof b.model === 'string' ? clean(b.model.replace(/[^\w .+()/-]+/g, ' ').replace(/\s+/g, ' '), 40) : '';
+  const os = /android/i.test(ua) ? 'Android' : /iphone|ipod/i.test(ua) ? 'iOS'
+    : /ipad/i.test(ua) || (/mac os x/i.test(ua) && b.touch) ? 'iPadOS' : /windows/i.test(ua) ? 'Windows'
+    : /cros/i.test(ua) ? 'ChromeOS' : /mac os x/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : clean(b.os, 20) || 'Unknown OS';
+  const kind = os === 'iPadOS' || /tablet/i.test(ua) || (os === 'Android' && !/mobi/i.test(ua)) ? 'tablet'
+    : /mobi|iphone|ipod|android/i.test(ua) ? 'phone' : 'computer';
+
+  // Chrome now sends "Android 10; K" for every phone, so trust the UA only when it names a real model
+  const uaModel = clean((ua.match(/Android [\d.]+;\s*([^;)]+?)(?:\s+Build|\)|;)/i) || [])[1], 40);
+  const realUaModel = uaModel && uaModel !== 'K' && !/^(wv|mobile|tablet)$/i.test(uaModel) ? uaModel : '';
+
+  let version = '';
+  if (os === 'Android') version = (hintVer && hintVer !== '0' ? hintVer : realUaModel ? (ua.match(/Android (\d+)/i) || [])[1] : '') || '';
+  else if (os === 'iOS' || (os === 'iPadOS' && /ipad/i.test(ua))) version = ((ua.match(/OS (\d+)[_.](\d+)/) || []).slice(1).join('.')) || '';
+  else if (os === 'Windows' && hintVer) version = parseInt(hintVer, 10) >= 13 ? '11' : '10';
+  else if (os === 'macOS' && hintVer && hintVer !== '0') version = hintVer;
+
+  let model = '';
+  if (os === 'Android') {
+    model = (hintModel || realUaModel).replace(/^samsung\s+/i, '');
+    const maker = model && MAKERS.find(([re]) => re.test(model));
+    if (maker) model = `${maker[1]} ${model}`;
+  } else if (os === 'iOS') {
+    const [w, h] = clean(b.screen, 14).split('×').map((n) => parseInt(n, 10)).sort((x, y) => x - y);
+    const match = IPHONE_SCREENS[`${w}×${h}`];
+    model = /ipod/i.test(ua) ? 'iPod touch' : match ? `iPhone (screen matches ${match})` : 'iPhone';
+  } else if (os === 'iPadOS') model = 'iPad';
+  else if (os === 'ChromeOS') model = 'Chromebook';
+
   const browser = /instagram/i.test(ua) ? 'Instagram in-app browser' : /fban|fbav/i.test(ua) ? 'Facebook in-app browser'
     : /tiktok|musical_ly|bytedance/i.test(ua) ? 'TikTok in-app browser' : /whatsapp/i.test(ua) ? 'WhatsApp in-app browser'
-    : /edg\//i.test(ua) ? 'Edge' : /samsungbrowser/i.test(ua) ? 'Samsung Internet' : /firefox|fxios/i.test(ua) ? 'Firefox'
-    : /chrome|crios/i.test(ua) ? 'Chrome' : /safari/i.test(ua) ? 'Safari' : 'Unknown browser';
-  return `${os} ${kind} · ${browser}`;
+    : /snapchat/i.test(ua) ? 'Snapchat in-app browser' : /edg(a|ios)?\//i.test(ua) ? 'Edge' : /samsungbrowser/i.test(ua) ? 'Samsung Internet'
+    : /opr\/|opera/i.test(ua) ? 'Opera' : /firefox|fxios/i.test(ua) ? 'Firefox' : /chrome|crios/i.test(ua) ? 'Chrome'
+    : /safari/i.test(ua) ? 'Safari' : 'Unknown browser';
+
+  const hardware = [model, `${os}${version ? ` ${version}` : ''} ${kind}`].filter(Boolean).join(' · ');
+  return { hardware, browser, line: `Device: ${hardware} · ${browser}` };
 }
 
 function build(b, ctx) {
@@ -49,7 +93,8 @@ function build(b, ctx) {
           visits > 1 ? `Returning visitor, visit ${visits}` : 'New visitor',
           ctx.ref && `Link tag: ${ctx.ref}`,
           b.referrer && `Came from: ${clean(b.referrer, 80)}`,
-          ctx.device,
+          `Device: ${ctx.device.hardware}`,
+          `Browser: ${ctx.device.browser}`,
           b.tz && `Their time: ${clean(b.local, 30)} (${clean(b.tz, 40)})`,
           `Screen ${clean(b.screen, 14)} · ${clean(b.lang, 12)}`,
           `Page ${clean(b.page, 60)} · visitor ${clean(b.v, 8)}`,
@@ -57,11 +102,11 @@ function build(b, ctx) {
       };
     }
     case 'mediakit':
-      return { title: `Media kit opened · ${ctx.place.text}`, tags: ['page_facing_up'], priority: 4, lines: [ctx.device, who] };
+      return { title: `Media kit opened · ${ctx.place.text}`, tags: ['page_facing_up'], priority: 4, lines: [ctx.device.line, who] };
     case 'chat':
       return {
         title: `Chat started · ${ctx.place.text}`, tags: ['speech_balloon'], priority: 3,
-        lines: [`“${clean(b.text, 240)}”`, `Via the ${b.where === 'floating' ? 'floating' : 'on-page'} assistant`, who],
+        lines: [`“${clean(b.text, 240)}”`, `Via the ${b.where === 'floating' ? 'floating' : 'on-page'} assistant`, ctx.device.line, who],
       };
     case 'brief':
       return {
@@ -69,7 +114,7 @@ function build(b, ctx) {
         lines: [
           `Creators: ${list(b.creators).join(', ') || 'not chosen'}`,
           `Budget: ${clean(b.budget, 30)}`, `Timeline: ${clean(b.timeline, 30)}`,
-          `From ${where}`, who,
+          `From ${where}`, ctx.device.line, who,
         ],
       };
     case 'enquiry': {
@@ -87,7 +132,7 @@ function build(b, ctx) {
           b.budget && `Budget: ${clean(b.budget, 30)}`,
           b.timeline && `Timeline: ${clean(b.timeline, 30)}`,
           b.message && `Message: ${clean(b.message, 600)}`,
-          `Sent from ${where}`, who,
+          `Sent from ${where}`, ctx.device.line, who,
         ],
       };
     }
@@ -103,7 +148,7 @@ function build(b, ctx) {
           list(b.videos).length && `Played: ${list(b.videos).join(', ')}`,
           chats > 0 && `Chat messages: ${chats}`,
           list(b.clicks).length && `Clicked: ${list(b.clicks).join(', ')}`,
-          who,
+          ctx.device.line, who,
         ],
       };
     }
@@ -135,7 +180,7 @@ module.exports = async (req, res) => {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = null; } }
   if (!body || typeof body !== 'object' || JSON.stringify(body).length > 6000) return res.status(400).end();
 
-  const note = build(body, { place: place(req.headers), device: device(ua, !!body.touch), ref: clean(body.ref, 40) });
+  const note = build(body, { place: place(req.headers), device: device(ua, body), ref: clean(body.ref, 40) });
   if (!note) return res.status(400).end();
 
   const topic = process.env.NTFY_TOPIC;

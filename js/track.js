@@ -36,7 +36,18 @@
   let referrer = '';
   try { const h = new URL(document.referrer).host; if (h !== location.host) referrer = h; } catch (e) { /* no referrer */ }
 
+  // Chromium can name the exact phone model and OS version; other browsers resolve to nothing
+  let hints = {};
+  const uad = navigator.userAgentData;
+  const hinted = uad && uad.getHighEntropyValues
+    ? Promise.race([
+      uad.getHighEntropyValues(['model', 'platformVersion']).then((h) => { hints = { model: h.model, os: h.platform, osv: h.platformVersion }; }).catch(() => {}),
+      new Promise((r) => setTimeout(r, 700)),
+    ])
+    : Promise.resolve();
+
   const base = () => ({
+    ...hints,
     v: vid, visits: parseInt(LS('oms_visits'), 10) || 1, ref, referrer,
     page: location.pathname,
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -52,8 +63,9 @@
     fetch('/api/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
   };
 
-  if (newSession) post('open');
-  if (/media-kit/.test(location.pathname) && !SS('oms_kit')) { SS('oms_kit', '1'); post('mediakit'); }
+  // the first notifications wait briefly for the model so they can name the device
+  if (newSession) hinted.then(() => post('open'));
+  if (/media-kit/.test(location.pathname) && !SS('oms_kit')) { SS('oms_kit', '1'); hinted.then(() => post('mediakit')); }
 
   /* ── what happened during the visit ── */
   const seen = { sections: new Set(), profiles: new Set(), videos: new Set(), clicks: new Set() };
