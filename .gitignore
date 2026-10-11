@@ -1,0 +1,4 @@
+assets/raw/
+.claude/
+.vercel/
+node_modules/
